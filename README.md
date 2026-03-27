@@ -1,4 +1,4 @@
-# Figma Bridge Soma
+# Figma Murdoc
 
 Fork del [Figma Console MCP](https://github.com/southleft/figma-console-mcp) extendido con un sistema de **Skills** para equipos de diseño. Conecta Claude con Figma Desktop para generar pantallas, documentar componentes, preparar handoffs y auditar sistemas de diseño — todo desde lenguaje natural.
 
@@ -145,6 +145,12 @@ figma-Bridge-Soma/
 └── dist/local.js                  ← Entry point compilado
 ```
 
+## Documentación adicional
+
+- [FAQ para el equipo](docs/FAQ.md) — preguntas frecuentes, diferencias con el MCP oficial y guía de personalización
+
 ## Créditos
 
 Basado en [figma-console-mcp](https://github.com/southleft/figma-console-mcp) por Southleft. Licencia MIT.
+
+Desarrollado y extendido por Rz Inc.
