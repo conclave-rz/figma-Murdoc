@@ -32,9 +32,24 @@ El usuario puede especificar antes de ejecutar:
 ```
 - Crear una Section en el canvas con el nombre del flujo
 - Los frames irán dentro, de izquierda a derecha, 80px de separación
+- ⚠️ Usar timeout: 10000 si se crean más de 2 frames
 ```
 
 ### Paso 3 — Generar pantallas según tipo
+
+> **⚠️ REGLAS OBLIGATORIAS para figma_execute en este paso:**
+>
+> **Async:** Siempre usar `await figma.getNodeByIdAsync(id)` y `await figma.setCurrentPageAsync(page)`. Las versiones sync (`figma.getNodeById`, `figma.currentPage = x`) están deprecadas y FALLAN.
+>
+> **Fonts:** Siempre hacer `await figma.loadFontAsync({family, style})` ANTES de asignar `.characters` a un nodo de texto.
+>
+> **Timeout:** Usar `timeout: 15000` para crear un frame con contenido. Usar `timeout: 25000` si se crean múltiples frames en una sola llamada. Nunca dejar el default de 5000.
+>
+> **Effects:** Si aplicas sombras, NO usar `spread` ni `blendMode` dentro del effect. Ver reglas en figma-use.
+>
+> **Dividir operaciones:** Crear cada frame en una llamada separada a figma_execute. NO intentar crear todo el flujo (4+ pantallas) en una sola llamada — se agotará el timeout y el resultado se truncará.
+>
+> **Código compacto:** Devolver solo `{ id, name }` de los nodos creados. No devolver el nodo completo.
 
 ---
 
@@ -95,6 +110,11 @@ Frame `[Flujo]/01 - Dashboard` (1440x900)
 - Content area: 4 cards de métricas en fila superior, tabla o lista debajo
 - Usar variables de color para separar zonas (sidebar más oscuro, content claro)
 
+> ⚠️ Este frame es complejo. Dividir en 3 llamadas:
+> 1. `timeout: 15000` — Crear frame base + sidebar
+> 2. `timeout: 15000` — Crear header + cards de métricas
+> 3. `timeout: 15000` — Crear tabla/lista de contenido
+
 ---
 
 #### TIPO: empty-states (3 pantallas mobile)
@@ -139,6 +159,36 @@ Frame `[Flujo]/03 - Sin conexión` (375x812)
 2. Crear versión básica con formas nativas y variables disponibles
 3. Nombrar con prefijo _temp/ para identificación fácil
 4. Añadir comentario en Figma indicando qué componente debería usarse
+
+## Patrón de código recomendado para crear un frame
+
+```javascript
+// ✅ Patrón correcto — una pantalla por llamada, timeout: 15000
+const page = figma.currentPage;
+
+// Cargar fuentes ANTES de crear textos
+await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+await figma.loadFontAsync({ family: "Inter", style: "Bold" });
+
+// Obtener sección padre
+const section = await figma.getNodeByIdAsync("SECTION_ID");
+
+// Crear frame
+const frame = figma.createFrame();
+frame.name = "Onboarding/01 - Bienvenida";
+frame.resize(375, 812);
+frame.x = 0;
+frame.y = 0;
+section.appendChild(frame);
+
+// Crear elementos hijos...
+const title = figma.createText();
+title.characters = "Bienvenido";
+// ...
+
+// Devolver SOLO lo necesario
+return { id: frame.id, name: frame.name };
+```
 
 ## Ejemplos de uso
 - "Genera un flujo de onboarding para mi app de finanzas"

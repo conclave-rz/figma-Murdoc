@@ -25,9 +25,24 @@ Obtener los nodeIds correspondientes.
 ```
 
 ### Paso 3 — Verificación de tokens
+
+> **⚠️ REGLAS OBLIGATORIAS para figma_execute en este paso:**
+>
+> **Async:** Siempre usar `await figma.getNodeByIdAsync(id)`. NUNCA `figma.getNodeById(id)`.
+>
+> **Timeout:** Escanear un árbol de nodos es costoso. Usar `timeout: 20000` mínimo. Si el frame tiene muchos hijos (>50 nodos), usar `timeout: 30000`.
+>
+> **Código compacto:** Al escanear nodos, devolver solo los hallazgos relevantes, NO el árbol completo. Ejemplo: `return findings` donde `findings` es un array de `{ nodeId, nodeName, issue, value }`.
+>
+> **Dividir escaneos:** Si hay múltiples frames a escanear, hacer UNA llamada por frame. No intentar escanear todo el archivo en una sola llamada.
+
 ```
 - figma_get_variables → cargar todas las variables disponibles
-- figma_execute → escanear los frames seleccionados en busca de:
+  (Si devuelve vacío, puede ser porque falta FIGMA_ACCESS_TOKEN
+   o el plan no es Enterprise. Usar como alternativa:
+   figma_execute con figma.variables.getLocalVariablesAsync()
+   con timeout: 15000)
+- figma_execute (timeout: 20000) → escanear los frames seleccionados:
   - Colores hardcodeados que tengan variable equivalente
   - Fuentes no conectadas al sistema de diseño
   - Espaciados hardcodeados con variable equivalente
@@ -35,7 +50,42 @@ Obtener los nodeIds correspondientes.
 - Preguntar al usuario si quiere corregirlos automáticamente
 ```
 
+**Patrón correcto para escaneo de tokens:**
+```javascript
+// ✅ Correcto — timeout: 20000, async, resultado compacto
+const frame = await figma.getNodeByIdAsync("FRAME_ID");
+const findings = [];
+
+function scan(node) {
+  // Verificar fills hardcodeados
+  if (node.fills && node.fills.length > 0) {
+    const fill = node.fills[0];
+    if (fill.type === "SOLID" && !node.boundVariables?.fills) {
+      findings.push({
+        id: node.id,
+        name: node.name,
+        issue: "hardcoded-fill",
+        value: `rgb(${Math.round(fill.color.r*255)},${Math.round(fill.color.g*255)},${Math.round(fill.color.b*255)})`
+      });
+    }
+  }
+  // Recorrer hijos
+  if ("children" in node) {
+    for (const child of node.children) scan(child);
+  }
+}
+
+scan(frame);
+return { total: findings.length, findings: findings.slice(0, 30) };
+// ↑ Limitar a 30 para no exceder el tamaño de respuesta
+```
+
 ### Paso 4 — Añadir anotaciones clave
+
+> **⚠️ Limitación conocida:** `figma_set_annotations` depende del Desktop Bridge plugin.
+> Si no funciona, usar como alternativa `figma_execute` con `node.setPluginData(key, value)`
+> para guardar metadata en los nodos (timeout: 10000).
+
 Para cada frame a entregar, añadir anotaciones en elementos críticos:
 ```
 - figma_set_annotations → añadir notas en:
@@ -55,6 +105,11 @@ Para cada frame a entregar, añadir anotaciones en elementos críticos:
 ```
 
 ### Paso 6 — Generar resumen de handoff
+
+> **⚠️ Limitación conocida:** `figma_post_comment` requiere `FIGMA_ACCESS_TOKEN` configurado
+> en el servidor MCP. Si falla, generar el resumen como texto en la conversación y ofrecer
+> al usuario que lo pegue manualmente como comentario en Figma.
+
 Crear un comentario en Figma con el resumen:
 ```
 - figma_post_comment → añadir nota con:
@@ -68,7 +123,7 @@ Crear un comentario en Figma con el resumen:
 
 ### Paso 7 — Captura final
 ```
-- figma_capture_screenshot de cada frame preparado
+- figma_capture_screenshot de cada frame preparado (timeout: 20000 si es frame complejo)
 - Confirmar al usuario que el handoff está listo
 ```
 
