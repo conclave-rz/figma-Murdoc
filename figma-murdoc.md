@@ -83,6 +83,8 @@ Llama a list_skills para ver los disponibles. Usa use_skill para cargar uno.
 | Detectar problemas de calidad | audit-quality |
 | Exportar variables a CSS/Tailwind | sync-tokens |
 | Conectar diseños al sistema de diseño | apply-design-system |
+| Migrar componentes a slots nativos | migrate-to-slots |
+| Patrones de composición con slots | slot-patterns |
 
 ---
 
@@ -205,3 +207,25 @@ Si no están disponibles, generar el resumen como texto en la conversación.
 ### Anotaciones
 `figma_get_annotations` y `figma_set_annotations` dependen del Desktop Bridge plugin.
 Si no funcionan, usar `node.setPluginData(key, value)` en `figma_execute` como alternativa.
+
+### Slots nativos (open beta)
+Los slots son un nuevo tipo de component property que permite áreas flexibles dentro de componentes.
+
+**Estado de la Plugin API:**
+- `SlotNode` existe como tipo de nodo → se pueden **detectar y leer** slots existentes
+- `ComponentPropertyType` solo tiene `BOOLEAN | TEXT | INSTANCE_SWAP | VARIANT` → **NO se pueden crear** slots programáticamente
+- `setProperties()` en instancias lanza `cannotSetSlotProperty` → **NO se puede modificar** contenido de slots via API
+
+**Lo que Murdoc puede hacer con slots:**
+- Auditar qué componentes son candidatos a slots (skill: `migrate-to-slots`)
+- Detectar slots existentes en componentes (`node.type === "SLOT"`)
+- Preparar la estructura del componente (crear frame con Auto Layout, nombrar `slot-*`)
+- Documentar slots en el handoff con mapeo a código (React children, Vue slot, etc.)
+- Aplicar patrones de composición con slots (skill: `slot-patterns`)
+
+**Lo que requiere acción manual del diseñador:**
+- Convertir un frame a slot: click derecho → "Convert to slot" (⌘⇧S)
+- Configurar preferred instances en el slot
+- Insertar contenido en slots de instancias
+
+Cuando Figma agregue `SLOT` a `ComponentPropertyType` y a `addComponentProperty`, Murdoc podrá crear slots completamente de forma programática.

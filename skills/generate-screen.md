@@ -160,6 +160,19 @@ Frame `[Flujo]/03 - Sin conexión` (375x812)
 3. Nombrar con prefijo _temp/ para identificación fácil
 4. Añadir comentario en Figma indicando qué componente debería usarse
 
+## Componentes slot-ready
+
+Cuando generes componentes nuevos (cards, modals, list items), estructura los frames internos para que puedan convertirse en slots nativos:
+
+- Nombrar frames de contenido variable con prefijo `slot-` (ej: `slot-body`, `slot-actions`)
+- Usar Auto Layout en esos frames (VERTICAL u HORIZONTAL según el caso)
+- Configurar `fill container` en la dirección principal
+- No hardcodear hijos fijos en frames que deberían ser flexibles
+
+Esto permite que el diseñador convierta esos frames a slots nativos con un click ("Convert to slot"), sin reestructurar después. Ver skill `slot-patterns` para patrones detallados por tipo de componente.
+
+> ⚠️ La Plugin API no puede crear slots programáticamente aún — solo preparar la estructura.
+
 ## Patrón de código recomendado para crear un frame
 
 ```javascript

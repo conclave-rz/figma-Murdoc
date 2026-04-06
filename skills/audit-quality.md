@@ -53,7 +53,21 @@ Si el archivo es grande, recomendar empezar por página-actual.
 - Cuantificar: X de Y capas tienen nombres incorrectos
 ```
 
-### Paso 5 — Generar reporte
+### Paso 5 — Auditoría de oportunidades de slots
+
+> ⚠️ Requiere Figma Desktop con slots en open beta habilitado.
+
+```
+- figma_execute (timeout: 20000) → escanear componentes:
+  - Componentes con >8 variantes donde variantes solo difieren en contenido → candidato a slots
+  - Componentes con props INSTANCE_SWAP → posible reemplazo por slot nativo
+  - Componentes que ya tienen slots (node.type === "SLOT") → verificar preferred instances
+  - Componentes con muchas capas ocultas para simular flexibilidad → slots los eliminan
+- Clasificar: "Migrar a slots" / "Ya usa slots" / "No aplica"
+- Nota: La Plugin API puede DETECTAR slots pero NO crearlos. Usar skill migrate-to-slots para preparar la migración.
+```
+
+### Paso 6 — Generar reporte
 
 Estructura del reporte:
 ```
@@ -76,11 +90,16 @@ Estructura del reporte:
 - Capas con nombres incorrectos: X de Y total
 - Lista de capas a renombrar
 
+## Oportunidades de slots
+- Componentes candidatos a migrar: X
+- Componentes que ya usan slots: X
+- Variantes que se podrían eliminar post-migración: X
+
 ## Recomendaciones
 Lista priorizada de qué corregir primero.
 ```
 
-### Paso 6 — Preguntar si corregir automáticamente
+### Paso 7 — Preguntar si corregir automáticamente
 Para cada categoría de issues, preguntar al usuario si quiere que se corrijan automáticamente los que se puedan resolver sin ambigüedad.
 
 ## Ejemplos de uso

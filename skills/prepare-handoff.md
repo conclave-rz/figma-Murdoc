@@ -104,6 +104,32 @@ Para cada frame a entregar, añadir anotaciones en elementos críticos:
 - Reportar findings al usuario con severidad
 ```
 
+### Paso 5.5 — Mapeo de slots a código
+
+> Si los componentes del handoff tienen slots nativos, documentar el mapeo a código.
+
+```
+- figma_execute (timeout: 15000) → para cada componente en el handoff:
+  - Detectar nodos con type === "SLOT"
+  - Leer componentPropertyDefinitions para props de tipo slot
+  - Generar mapeo:
+    - SLOT → children (React) / <slot> (Vue) / ng-content (Angular)
+    - Slots nombrados → named slots / named children props
+  - Documentar preferred instances como "componentes recomendados" en el handoff
+```
+
+**Ejemplo de documentación generada:**
+```
+## Card Component — Slot Mapping
+
+| Slot Figma | Prop código | Tipo |
+|---|---|---|
+| slot-body | children | ReactNode |
+| slot-actions | actions | ReactNode |
+
+Preferred instances para slot-body: ImageBlock, StatsRow, DescriptionText
+```
+
 ### Paso 6 — Generar resumen de handoff
 
 > **⚠️ Limitación conocida:** `figma_post_comment` requiere `FIGMA_ACCESS_TOKEN` configurado
