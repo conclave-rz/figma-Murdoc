@@ -344,3 +344,64 @@ figma-Murdoc/
 Basado en [figma-console-mcp](https://github.com/southleft/figma-console-mcp) por Southleft. Licencia MIT.
 
 Desarrollado y extendido por Rz Inc.
+
+---
+
+## html-to-figma
+
+**Migra prototipos HTML/React generados en Claude a Figma como un design system completo.**
+
+Convierte artefactos de Claude Desktop o Claude Code (HTML, React/JSX, Tailwind CSS) en un archivo Figma editabl con tokens, componentes nativos y pantallas listas para que el equipo de diseño itere.
+
+### Flujo de migración
+
+```
+HTML/React/CSS (input)
+       │
+       ▼
+  1. ANÁLISIS     → Parser extrae estructura (html_parser.py → spec JSON)
+       │
+       ▼
+  2. TOKENS       → CSS vars / Tailwind → Figma Variables (Light/Dark)
+       │
+       ▼
+  3. COMPONENTES  → Elementos reutilizables → Figma Components con variantes
+       │
+       ▼
+  4. PANTALLAS    → Layouts completos → Figma Frames (mobile/desktop)
+       │
+       ▼
+  5. HANDOFF      → Documentar, anotar, entregar al equipo de diseño
+```
+
+### Qué detecta automáticamente
+
+| Fuente | Extrae |
+|---|---|
+| **Tailwind CSS** | Colores, tipografía, spacing, border-radius, sombras |
+| **CSS Custom Properties** | Variables con soporte Light/Dark mode |
+| **React/JSX** | Componentes, props tipados, variantes (TypeScript interfaces) |
+| **HTML semántico** | Patrones repetidos como componentes, secciones como pantallas |
+
+### Herramientas incluidas
+
+- `scripts/html_parser.py` — Parser standalone que analiza código y genera un spec JSON intermedio
+- `SKILL.md` — Instrucciones completas del flujo de migración con patrones de código probados
+
+### Ejemplo de uso
+
+```
+"Migra este HTML que generamos a Figma con su design system"
+"Convierte este artifact React en componentes de Figma"
+"Toma este prototipo y pásalo a Figma para que diseño lo retome"
+"Genera el DS en Figma a partir de este código Tailwind"
+```
+
+### Uso del parser standalone
+
+```bash
+python scripts/html_parser.py mi-app.tsx --output spec.json
+```
+
+Genera un JSON con tokens, componentes y pantallas detectados que el skill usa para crear todo en Figma.
+
