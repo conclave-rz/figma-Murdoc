@@ -5,6 +5,33 @@ All notable changes to Figma Console MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — html-to-figma v2.1
+
+### Changed
+- **Skill `html-to-figma` reescrito con findings de ejecución E2E** sobre un mini SaaS dashboard (header + sidebar + stat cards + table + 5 component sets). Pasa de v2 a v2.1.
+
+### Added (v2.1)
+- Sección "Realidad de las tools de Murdoc" — documenta qué tools wrapper existen vs cuáles requieren `figma_execute` con Plugin API directa.
+- Patrón obligatorio async (`loadAsync`, `getNodeByIdAsync`, `getVariableByIdAsync`) con plantilla mínima reutilizable.
+- Fase 6 expandida: **Effect Styles** (shadows) y **Text Styles** (typography) separados de Variables, con código de creación exacto.
+- Fase 5 con **blueprint JSON persistente** en `/home/claude/figma-handoff-blueprint.json` — permite reanudar si el plugin cae a mitad de ejecución.
+- Heurística de **familias semánticas**: valores únicos (ej. 4 tints de badge) que juntos forman un grupo coherente cuentan como un solo "uso colectivo".
+- Heurística de **detección estructural sin clase**: `<tr>` y similares con N≥3 repeticiones se vuelven componente aunque no tengan CSS class.
+- Política explícita para tokens declarados pero sin uso en código (default: crearlos, respeta el sistema declarado).
+- Tabla de **interpretación de findings del lint** con falsos positivos conocidos (alpha contrast, `/` en naming).
+- Fallback de annotations vía `figma_execute` con `node.annotations = [...]` cuando el bridge no implementa `SET_ANNOTATIONS`.
+
+### Fixed
+- Regex BEM + pseudo-states ahora captura correctamente `.btn--primary:hover` (antes el modifier se "comía" el state).
+- Patrón correcto de `combineAsVariants` — los componentes deben estar en `figma.currentPage` antes de combinar.
+- Sections (`figma.createSection()`) vs Frames como contenedores de Component Sets — los Frames con auto-layout rompen los components.
+- Sufijos `#nodeId` en las component property keys ahora documentados.
+
+### Notes
+- Fases 2–5 declaradas como **offline-capable**: corren sin el plugin de Figma conectado. Solo desde Fase 6 se requiere el bridge activo.
+- `figma_get_design_system_kit` requiere REST API token; documentado fallback con plugin-only.
+
+
 ## [1.19.0] - 2026-03-25
 
 ### Added

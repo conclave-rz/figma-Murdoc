@@ -353,6 +353,8 @@ Desarrollado y extendido por Rz Inc.
 
 Convierte artefactos de Claude Desktop o Claude Code (HTML, React/JSX, Tailwind CSS) en un archivo Figma editabl con tokens, componentes nativos y pantallas listas para que el equipo de diseño itere.
 
+**Iteración v2.1 (2026-05).** El skill fue reescrito tras una ejecución end-to-end real construyendo un dashboard SaaS completo en Figma. La v2.1 integra 13 findings de producción: patrones async obligatorios, separación de Effect Styles y Text Styles, blueprint JSON para reanudación, fallbacks robustos y filtrado de falsos positivos del lint. Ver `CHANGELOG.md` para el detalle completo.
+
 ### Flujo de migración
 
 ```
@@ -382,11 +384,13 @@ HTML/React/CSS (input)
 | **CSS Custom Properties** | Variables con soporte Light/Dark mode |
 | **React/JSX** | Componentes, props tipados, variantes (TypeScript interfaces) |
 | **HTML semántico** | Patrones repetidos como componentes, secciones como pantallas |
+| **Familias semánticas** | Detecta grupos de valores únicos (tints, escalas) que comparten patrón estructural y los promueve a tokens nuevos |
 
 ### Herramientas incluidas
 
 - `scripts/html_parser.py` — Parser standalone que analiza código y genera un spec JSON intermedio
 - `SKILL.md` — Instrucciones completas del flujo de migración con patrones de código probados
+- **Blueprint JSON** — el skill persiste el plan completo en `/home/claude/figma-handoff-blueprint.json` antes de tocar Figma, permitiendo reanudar si el plugin cae a mitad de ejecución
 
 ### Ejemplo de uso
 
