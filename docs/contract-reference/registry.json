@@ -1,0 +1,40 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "rz-contract",
+  "homepage": "https://rz.dev/contract",
+  "items": [
+    {
+      "name": "design-tokens",
+      "type": "registry:base",
+      "title": "Design tokens (DTCG)",
+      "description": "Fuente única de verdad. Tokens en formato W3C DTCG, tres niveles.",
+      "files": [
+        { "path": "tokens/design.tokens.json", "type": "registry:file", "target": "tokens/design.tokens.json" }
+      ]
+    },
+    {
+      "name": "button-primary",
+      "type": "registry:ui",
+      "title": "Botón primario",
+      "description": "Acción principal única del contexto.",
+      "files": [{ "path": "contract/examples/action-button-primary.contract.json", "type": "registry:file" }],
+      "meta": { "contract": "action/button/primary", "when": "Acción más importante y única del contexto." }
+    },
+    {
+      "name": "field-text",
+      "type": "registry:ui",
+      "title": "Campo de texto",
+      "description": "Captura de una línea de texto libre.",
+      "files": [{ "path": "contract/examples/form-field-text.contract.json", "type": "registry:file" }],
+      "meta": { "contract": "form/field/text", "behavior": "zag:field", "when": "Una sola línea de texto libre." }
+    },
+    {
+      "name": "dialog-modal",
+      "type": "registry:ui",
+      "title": "Diálogo modal",
+      "description": "Interrupción que bloquea hasta resolverse.",
+      "files": [{ "path": "contract/examples/overlay-dialog-modal.contract.json", "type": "registry:file" }],
+      "meta": { "contract": "overlay/dialog/modal", "behavior": "ark:dialog", "when": "Decisión que bloquea la pantalla." }
+    }
+  ]
+}

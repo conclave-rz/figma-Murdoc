@@ -1,0 +1,19 @@
+{
+  "$schema": "../component-contract.schema.json",
+  "id": "overlay/dialog/modal",
+  "name": "Diálogo modal",
+  "description": "Interrupción que bloquea el resto hasta resolverse.",
+  "when": "Se requiere una decisión o entrada del usuario que bloquea el resto de la pantalla hasta resolverse.",
+  "behavior": { "primitive": "ark:dialog", "framework": "agnostic", "note": "Foco atrapado, cierre con Escape y clic fuera." },
+  "slots": ["trigger", "title", "body", "footer", "close"],
+  "states": ["closed", "open"],
+  "props": [
+    { "name": "dismissible", "type": "boolean", "default": true }
+  ],
+  "tokensUsed": [
+    "semantic.color.bg.base",
+    "semantic.color.text.primary",
+    "semantic.radius.card"
+  ],
+  "a11y": { "role": "dialog", "keyboard": ["Escape", "Tab"] }
+}

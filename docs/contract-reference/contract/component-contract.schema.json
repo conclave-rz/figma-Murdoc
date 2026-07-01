@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rz.dev/schema/component-contract.json",
+  "title": "Contrato de componente",
+  "description": "La capa opinada del Pilar 0. Un item por componente. Es lo que la IA lee para decidir qué pieza usar, lo que rz-dash produce, design-in-code valida y Murdoc lee para Code Connect.",
+  "type": "object",
+  "required": ["id", "name", "when", "states", "tokensUsed"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Identidad en convención category/role/variant. En minúsculas, kebab-case por segmento.",
+      "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+    },
+    "name": { "type": "string", "description": "Nombre legible para humanos." },
+    "description": { "type": "string" },
+    "when": {
+      "type": "string",
+      "description": "Regla de uso: en qué situación se elige esta pieza y no otra. Es el campo que ancla a la IA.",
+      "minLength": 12
+    },
+    "behavior": {
+      "type": "object",
+      "description": "De dónde sale el comportamiento y accesibilidad. null = pieza estática sin máquina de estado.",
+      "additionalProperties": false,
+      "properties": {
+        "primitive": {
+          "type": ["string", "null"],
+          "description": "Primitivo headless que la respalda, p. ej. 'ark:dialog' o 'zag:combobox'. null si es estática.",
+          "pattern": "^(ark|zag):[a-z-]+$"
+        },
+        "framework": { "type": "string", "enum": ["agnostic", "react", "vue", "vanilla"] },
+        "note": { "type": "string" }
+      },
+      "required": ["framework"]
+    },
+    "slots": {
+      "type": "array",
+      "description": "Anatomía: partes que rellena quien la usa.",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "states": {
+      "type": "array",
+      "description": "Estados que la pieza debe contemplar (mínimo uno).",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "props": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "values": { "type": "array", "items": { "type": "string" } },
+          "default": {}
+        }
+      }
+    },
+    "tokensUsed": {
+      "type": "array",
+      "description": "Tokens que consume, en notación con puntos. REGLA DURA: solo semantic.* o component.*, nunca primitive.*.",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^(semantic|component)\\.[a-z0-9.-]+$" }
+    },
+    "a11y": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string" },
+        "keyboard": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

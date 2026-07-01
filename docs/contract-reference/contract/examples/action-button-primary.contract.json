@@ -1,0 +1,20 @@
+{
+  "$schema": "../component-contract.schema.json",
+  "id": "action/button/primary",
+  "name": "Botón primario",
+  "description": "La acción principal de una vista. Uno por contexto.",
+  "when": "Es la acción más importante y única del contexto: enviar, continuar, confirmar.",
+  "behavior": { "primitive": null, "framework": "agnostic", "note": "Botón nativo, sin máquina de estado." },
+  "slots": ["label", "icon-start", "icon-end"],
+  "states": ["default", "hover", "focus", "active", "disabled", "loading"],
+  "props": [
+    { "name": "disabled", "type": "boolean", "default": false },
+    { "name": "loading", "type": "boolean", "default": false }
+  ],
+  "tokensUsed": [
+    "component.button.primary.bg",
+    "component.button.primary.text",
+    "component.button.primary.radius"
+  ],
+  "a11y": { "role": "button", "keyboard": ["Enter", "Space"] }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "../component-contract.schema.json",
+  "id": "form/field/text",
+  "name": "Campo de texto",
+  "description": "Captura de una sola línea de texto libre.",
+  "when": "Se captura una sola línea de texto libre: nombre, correo, búsqueda simple.",
+  "behavior": { "primitive": "zag:field", "framework": "agnostic" },
+  "slots": ["label", "input", "hint", "error"],
+  "states": ["default", "focus", "filled", "disabled", "invalid"],
+  "props": [
+    { "name": "type", "type": "enum", "values": ["text", "email", "search"], "default": "text" },
+    { "name": "invalid", "type": "boolean", "default": false }
+  ],
+  "tokensUsed": [
+    "semantic.color.bg.base",
+    "semantic.color.text.primary",
+    "semantic.color.border.default",
+    "semantic.color.feedback.danger",
+    "semantic.radius.control"
+  ],
+  "a11y": { "role": "textbox" }
+}
