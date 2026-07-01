@@ -75,6 +75,9 @@ StatCard, DataTable, Sidebar, CommandPalette, StatusBadge, NotificationPanel, Em
 
 ## Pasos de ejecución
 
+### Paso 0 — Preflight reuse-first (buscar antes de generar)
+> Antes de crear tokens y componentes de industria, ejecuta el skill `reuse-first`: para cada componente de la industria, busca si ya existe en el registry del contrato, en el archivo o en una librería vinculada. Reusa (instancia) lo que exista; solo genera lo que falte. Evita recrear componentes que el DS ya provee.
+
 ### Paso 1 — Verificar base de Radix
 - figma_get_variables → verificar colecciones "Radix / Colors" etc.
 - Si no existen, detener y pedir ejecutar setup-radix-base primero

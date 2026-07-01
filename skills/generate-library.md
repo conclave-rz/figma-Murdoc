@@ -21,6 +21,9 @@ El usuario puede especificar:
 
 ## Pasos de ejecución
 
+### Paso 0 — Preflight reuse-first (buscar antes de generar)
+> Antes de planificar y crear componentes, ejecuta el skill `reuse-first`: contrasta la lista de componentes del codebase contra el registry del contrato, el archivo y las librerías vinculadas. Los que ya existan se reutilizan/actualizan en vez de duplicarse; solo los ausentes entran al plan de creación de los pasos siguientes.
+
 ### Paso 1 — Obtener información del codebase
 
 Pedir al usuario que comparta la estructura de sus componentes. Se puede obtener de varias formas:

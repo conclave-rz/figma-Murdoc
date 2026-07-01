@@ -19,6 +19,9 @@ El usuario puede especificar antes de ejecutar:
 
 ## Pasos de ejecución
 
+### Paso 0 — Preflight reuse-first (buscar antes de generar)
+> Antes de reconocer el DS y generar, ejecuta el skill `reuse-first`: lista las piezas que necesitará la pantalla (botón, input, card, nav…) y busca si ya existen en el registry del contrato, en el archivo o en una librería vinculada. Reusa (instancia) lo que exista; solo lo que no exista pasa a generarse en los pasos siguientes. Este paso no reemplaza el Paso 1, lo antecede.
+
 ### Paso 1 — Reconocimiento del sistema de diseño
 ```
 - figma_get_variables → guardar colores, tipografías, espaciados disponibles
