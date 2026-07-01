@@ -58,6 +58,8 @@ import { registerTokenBrowserApp } from "./apps/token-browser/server.js";
 import { registerDesignSystemDashboardApp } from "./apps/design-system-dashboard/server.js";
 import { registerFigJamTools } from "./core/figjam-tools.js";
 import { registerSlidesTools } from "./core/slides-tools.js";
+import { registerHtmlToFigmaTools } from "./core/html-to-figma-tools.js";
+import type { CapturePage } from "./core/html-to-figma-capture.js";
 import { listSkillsTool, useSkillTool } from "./tools/skills.js";
 
 
@@ -5790,6 +5792,47 @@ return {
 			undefined, // options
 			() => this.getDesktopConnector(), // Desktop Bridge for description fallback
 		);
+
+		// Register html-to-figma live capture tool.
+		// El browser local está conectado a Figma Desktop (Electron), no a un
+		// navegador web, así que para renderizar URLs/HTML externos lanzamos un
+		// Chromium headless DEDICADO vía puppeteer-core. Si no hay Chrome, la tool
+		// cae al parser estático (fallback) sin romper la sesión de Figma.
+		registerHtmlToFigmaTools(this.server, async (): Promise<CapturePage | null> => {
+			const candidates = [
+				process.env.PUPPETEER_EXECUTABLE_PATH,
+				process.env.CHROME_PATH,
+				"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+				"/Applications/Chromium.app/Contents/MacOS/Chromium",
+				"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+				"/usr/bin/google-chrome",
+				"/usr/bin/chromium-browser",
+				"/usr/bin/chromium",
+			].filter((p): p is string => Boolean(p) && existsSync(p as string));
+			if (candidates.length === 0) {
+				logger.warn("No se encontró Chrome/Chromium para captura viva; se usará el fallback estático");
+				return null;
+			}
+			try {
+				const puppeteer = (await import("puppeteer-core")).default;
+				const browser = await puppeteer.launch({
+					executablePath: candidates[0],
+					headless: true,
+					args: ["--no-sandbox", "--disable-setuid-sandbox"],
+				});
+				const page = await browser.newPage();
+				// Al cerrar la página, cerrar también el navegador dedicado (evita fugas).
+				const origClose = page.close.bind(page);
+				(page as unknown as { close: () => Promise<void> }).close = async () => {
+					await origClose();
+					await browser.close();
+				};
+				return page as unknown as CapturePage;
+			} catch (err) {
+				logger.error({ err }, "No se pudo lanzar Chromium dedicado para captura viva");
+				return null;
+			}
+		});
 
 		// Register Comment tools
 		registerCommentTools(

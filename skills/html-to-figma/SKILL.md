@@ -93,6 +93,7 @@ Si el script crea o edita más de ~10 nodos, **sube el timeout** a `30000` ms en
 | Imágenes | — | `figma.createImageAsync` + `imageHash` en fills |
 | Handoff | `figma_lint_design` (linter listo) | `node.annotations = [...]` (annotations), `node.description = '...'` |
 | Validación | `figma_capture_screenshot`, `figma_get_component_image` | — |
+| **Captura viva** | **`figma_capture_html`** (renderiza URL/HTML real en navegador headless → árbol de Figma con Auto-Layout, nombres `data-component` conservados) | Emitir el árbol devuelto vía `figma_execute` |
 
 `figma_get_design_system_kit` y `figma_get_variables` con `enrich=true` requieren **REST API token** que muchas veces no está configurado. **Fallback obligatorio:** usar `figma_get_design_system_summary` (plugin-only) o `figma_execute` con `figma.variables.getLocalVariableCollectionsAsync()` para enumerar lo existente.
 
@@ -155,7 +156,13 @@ Si encontraste design system existente, **reutiliza lo que encaje** (match por v
 - Detecta rutas (React Router, Next.js `pages/`, etc.). Cada ruta es una pantalla.
 
 ### URL en vivo:
-- `web_fetch` para traer HTML renderizado.
+**Ruta preferida — captura viva (v2):** usa `figma_capture_html` con `{ url }`. Renderiza la página real en un navegador headless y devuelve un **árbol de Figma con Auto-Layout** (display:flex → layoutMode, gap → itemSpacing, padding, background → fills, border-radius → cornerRadius) **conservando los nombres `category/role/variant`** del atributo `data-component`. Ese árbol se emite luego con `figma_execute` en la Fase 8. Es de mayor fidelidad que el parseo estático porque usa los estilos computados reales.
+
+También acepta `{ html }` para renderizar una cadena HTML en vez de una URL.
+
+**Fallback estático:** si `figma_capture_html` responde que no hay navegador disponible (o falla), cae al parser estático `scripts/html_parser.py` sobre el HTML/CSS de origen (trae el HTML con `web_fetch` primero). El parser estático sigue siendo válido para artifacts/proyectos multi-archivo donde no hay una URL en vivo que renderizar.
+
+> **Caveat (modo local):** el browser local del MCP está conectado a Figma Desktop (Electron), no a un navegador web. La captura viva lanza un **Chromium headless dedicado** (Chrome/Chromium/Edge del sistema, o `PUPPETEER_EXECUTABLE_PATH`/`CHROME_PATH`). Si no hay ninguno instalado, se usa el fallback estático automáticamente. En Cloudflare (Browser Rendering) la captura viva funciona nativamente.
 
 ### Output interno:
 - Lista de pantallas detectadas con su path y viewport probable.

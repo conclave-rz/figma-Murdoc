@@ -30,6 +30,8 @@ import { CloudWebSocketConnector } from "./core/cloud-websocket-connector.js";
 import { registerWriteTools } from "./core/write-tools.js";
 import { registerFigJamTools } from "./core/figjam-tools.js";
 import { registerSlidesTools } from "./core/slides-tools.js";
+import { registerHtmlToFigmaTools } from "./core/html-to-figma-tools.js";
+import type { CapturePage } from "./core/html-to-figma-capture.js";
 
 // Re-export PluginRelayDO so Cloudflare Workers can bind it as a Durable Object
 export { PluginRelayDO } from "./core/cloud-websocket-relay.js";
@@ -994,6 +996,21 @@ export class FigmaConsoleMCPv3 extends McpAgent {
 			getCloudDesktopConnector,
 		);
 
+		// Register html-to-figma live capture tool. Cloudflare Browser Rendering
+		// (env.BROWSER) es un Chromium real, así que abrimos una página fresca para
+		// renderizar la URL/HTML. Si el browser no está disponible, cae al fallback.
+		registerHtmlToFigmaTools(this.server, async (): Promise<CapturePage | null> => {
+			if (!this.browserManager) return null;
+			try {
+				const browser = await this.browserManager.launch();
+				const page = await browser.newPage();
+				return page as unknown as CapturePage;
+			} catch (err) {
+				logger.error({ err }, "No se pudo abrir página para captura viva");
+				return null;
+			}
+		});
+
 		// Register Comment tools
 		registerCommentTools(
 			this.server,
@@ -1356,6 +1373,9 @@ export default {
 				{ isRemoteMode: true },
 				getCloudDesktopConnector,
 			);
+
+			// Stateless: sin browser persistente → captura viva cae al fallback estático.
+			registerHtmlToFigmaTools(statelessServer, async () => null);
 
 			registerCommentTools(
 				statelessServer,
