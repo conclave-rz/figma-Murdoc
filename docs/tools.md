@@ -34,6 +34,7 @@ This guide provides detailed documentation for each tool, including when to use 
 | **✏️ Design Creation** | `figma_execute` | Run Figma Plugin API code | Local / Cloud |
 | | `figma_arrange_component_set` | Organize variants with labels | Local / Cloud |
 | | `figma_set_description` | Add component descriptions | Local / Cloud |
+| | `figma_capture_html` | Live-render a URL/HTML in a headless browser → Figma tree with Auto-Layout (preserves `data-component` names) | Local / Cloud |
 | **🧩 Components** | `figma_search_components` | Find components by name (local + library) | Local / Cloud |
 | | `figma_get_library_components` | Discover components from published libraries | Local |
 | | `figma_get_component_details` | Get component details | Local / Cloud |
@@ -678,6 +679,37 @@ frame.paddingTop = 16;
 frame.paddingBottom = 16;
 frame.paddingLeft = 16;
 frame.paddingRight = 16;
+```
+
+---
+
+### `figma_capture_html`
+
+**Live capture (html-to-figma v2).** Renders a real URL or HTML string in a headless browser and returns a **Figma node tree with Auto-Layout**, preserving layer names from the `data-component` (`category/role/variant`) attribute. Higher fidelity than the static parser (`scripts/html_parser.py`), which remains as a fallback.
+
+**Parameters:**
+- `url` (string, optional) — live URL to render and capture.
+- `html` (string, optional) — HTML string to render (alternative to `url`).
+- `viewportWidth` (number, optional) — viewport width. Default `1440`.
+- `viewportHeight` (number, optional) — viewport height. Default `900`.
+
+One of `url` or `html` is required.
+
+**Returns:** a JSON tree of `FRAME`/`TEXT` nodes with Auto-Layout mapped from CSS (`display:flex` → `layoutMode`, `gap` → `itemSpacing`, `padding`, `background` → `fills`, `border-radius` → `cornerRadius`) plus capture stats (nodes, contract-named, text nodes). Feed the returned tree to `figma_execute` to create the layers.
+
+**Behavior by mode:**
+- **Cloud** — uses Cloudflare Browser Rendering (real Chromium) natively.
+- **Local** — the local browser is connected to Figma Desktop (Electron), not a web browser, so live capture launches a **dedicated headless Chromium** (system Chrome/Chromium/Edge, or `PUPPETEER_EXECUTABLE_PATH` / `CHROME_PATH`).
+- **No browser available** — returns guidance to use the static parser fallback instead of failing.
+
+```jsonc
+// figma_capture_html({ url: "https://example.com", viewportWidth: 1440 })
+{
+  "source": "live",
+  "url": "https://example.com",
+  "tree": { "type": "FRAME", "name": "layout/page/default", "layoutMode": "VERTICAL", "itemSpacing": 8, "children": [ /* ... */ ] },
+  "stats": { "nodes": 128, "contractNamed": 12, "textNodes": 34 }
+}
 ```
 
 ---
