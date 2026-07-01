@@ -7,14 +7,14 @@ Fork del [Figma Console MCP](https://github.com/southleft/figma-console-mcp) ext
 - **Sistema de Skills** — instrucciones en markdown que definen flujos de trabajo completos para diseñadores
 - **Loader dinámico** — los skills se leen en tiempo real sin recompilar ni reiniciar el servidor
 - **Instrucciones de arranque** — el servidor carga `figma-murdoc.md` al iniciar
-- **19 skills listos para usar** — cubre los workflows más comunes de un equipo de diseño
+- **22 skills listos para usar** — cubre los workflows más comunes de un equipo de diseño
 - **Orquestación inteligente** — mission planner con personas, pipelines con dependencias, review gates y auto-mejora (Nen)
 - **Integración con Radix UI** — sistema de diseño base accesible con skills por industria
 - **Soporte para Slots nativos** — auditoría, migración y patrones de composición con la nueva feature de Figma
 - **Specs de accesibilidad** — generación de specs para VoiceOver, TalkBack y ARIA
 - **Reglas de Plugin API** — documentación de errores comunes y mejores prácticas integrada en los skills
 
-## Skills disponibles (19)
+## Skills disponibles (22)
 
 ### Orquestación
 | Skill | Qué hace |
@@ -35,6 +35,7 @@ Fork del [Figma Console MCP](https://github.com/southleft/figma-console-mcp) ext
 | `generate-screen` | Genera cualquier pantalla: onboarding, login, dashboard, empty states o custom. Incluye estructura slot-ready |
 | `generate-onboarding` | Flujo de onboarding mobile de 4 pantallas con sistema de diseño |
 | `generate-library` | Crea librería de componentes en Figma desde un codebase (React, Vue, Angular, Svelte). Extrae props, variantes, tokens y los recrea como componentes nativos |
+| `reuse-first` | Preflight buscar-antes-de-generar: consulta el registry del contrato, la librería y el DS del archivo; reutiliza lo que existe en vez de recrearlo. Paso 0 de los `generate-*` |
 
 ### Documentación
 | Skill | Qué hace |
@@ -46,7 +47,8 @@ Fork del [Figma Console MCP](https://github.com/southleft/figma-console-mcp) ext
 | Skill | Qué hace |
 |---|---|
 | `prepare-handoff` | Prepara diseños para desarrollo: anotaciones, nomenclatura, mapeo de slots a código (React/Vue/Angular) y "Ready for dev" |
-| `sync-tokens` | Exporta variables de Figma a CSS, Tailwind, JSON o Sass |
+| `sync-tokens` | Sincroniza tokens en ambas direcciones: exporta variables de Figma a CSS, Tailwind, JSON, Sass o **DTCG**, e importa DTCG (`design.tokens.json`) a Figma. Round-trip sin pérdida |
+| `connect-codebase` | Code Connect: mapa explícito nodo Figma ↔ componente de código vía `data-component` (`category/role/variant`). Emite `code-connect.map.json` + anotaciones |
 
 ### Auditoría y calidad
 | Skill | Qué hace |
@@ -66,6 +68,13 @@ Fork del [Figma Console MCP](https://github.com/southleft/figma-console-mcp) ext
 | `setup-radix-base` | Importa tokens de Radix UI como variables en Figma |
 | `generate-industry` | Genera DS completo por industria: travel, fintech, ecommerce, health, saas |
 | `apply-design-system` | Conecta diseños existentes al sistema de diseño activo |
+
+### Contrato (Pilar 0)
+| Skill | Qué hace |
+|---|---|
+| `apply-contract` | Ingiere el contrato del Pilar 0 (`docs/contract-reference/`): tokens DTCG de 3 niveles → variables de Figma con alias, y `registry.json` + `.contract.json` → stubs de componente con nombres `category/role/variant` |
+
+> `connect-codebase` y `sync-tokens` (import DTCG) también consumen el contrato del Pilar 0. La captura viva de `html-to-figma` conserva la misma nomenclatura `category/role/variant`.
 
 ## Reglas de Plugin API integradas
 
@@ -227,7 +236,7 @@ En Claude Desktop escribe:
 list_skills
 ```
 
-Deberías ver los 19 skills disponibles.
+Deberías ver los 22 skills disponibles.
 
 ## Flujo de misión (orquestación)
 
@@ -306,7 +315,7 @@ SKILL
 ## Estructura del proyecto
 ```
 figma-Murdoc/
-├── skills/                          ← Skills en markdown (19 archivos)
+├── skills/                          ← Skills en markdown (22 archivos)
 │   ├── figma-use.md                 ← Base + reglas de Plugin API
 │   ├── mission-planner.md           ← Personas preflight
 │   ├── run-mission.md               ← Pipelines con dependencias

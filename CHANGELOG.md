@@ -5,6 +5,27 @@ All notable changes to Figma Console MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — Murdoc v2
+
+Murdoc pasa a **consumir el contrato del Pilar 0** (tokens DTCG + registry shadcn + nomenclatura `category/role/variant`) como fuente de verdad. Radix deja de ser la única base. Total de skills: **19 → 22**.
+
+### Added
+- **Skill `apply-contract`** (Pilar 0 → Murdoc): ingiere `docs/contract-reference/` — tokens DTCG de 3 niveles (primitive/semantic/component) → variables de Figma con alias entre colecciones (respeta la regla dura: componentes referencian semántico, nunca primitivo), y `registry.json` + `.contract.json` → stubs de componente cuyos nombres coinciden con los `id` `category/role/variant` del registry.
+- **Skill `connect-codebase`** (Code Connect): mapa explícito nodo Figma ↔ componente de código usando `registry.meta.contract` y el atributo `data-component`. Emite `code-connect.map.json` + anotaciones/pluginData en el nodo. Cierra la brecha #1 vs. el MCP oficial (antes solo se anotaba).
+- **Skill `reuse-first`**: preflight buscar-antes-de-generar (registry del contrato + librería + DS del archivo). Enganchado como **Paso 0** en `generate-screen`, `generate-industry` y `generate-library` sin romper su flujo.
+- **Tool MCP `figma_capture_html`** (captura viva de `html-to-figma`): renderiza URL/HTML real en un Chromium headless y devuelve un árbol de Figma con **Auto-Layout** (flex → layoutMode, gap → itemSpacing, padding, background → fills, border-radius → cornerRadius), **conservando los nombres `category/role/variant`** del atributo `data-component`. El parser estático (`html_parser.py`) se conserva como fallback.
+  - `src/core/html-to-figma-capture.ts` (convertidor puro DOM-snapshot → árbol + script de captura in-browser + orquestador con página inyectada por DI) y `src/core/html-to-figma-tools.ts` (tool con fallback grácil). 14 tests unitarios nuevos.
+  - Cableado en modo local (Chromium dedicado, porque el browser local va a Figma Desktop/Electron) y Cloudflare (Browser Rendering).
+- **`docs/contract-reference/`**: copia de referencia del contrato del Pilar 0 (tokens, schema, registry, ejemplos, validador) contra la que se prueban `apply-contract` y `connect-codebase`.
+
+### Changed
+- **Skill `sync-tokens`** ahora es **bidireccional**: añade **DTCG** como formato de export (fiel al contrato, con dimensiones `{value,unit}` y referencias `{...}` como alias) e **import DTCG** (`design.tokens.json` → Figma, delegando el alta de variables en `apply-contract`). Documenta el round-trip código → Figma → código sin pérdida.
+- README: tabla de skills y conteo (19 → 22), nueva sección "Contrato (Pilar 0)".
+
+### Notes
+- Los skills nuevos son markdown de bajo riesgo (se leen en runtime, no requieren recompilar). La captura viva es la única pieza de `src/`: `build:local` y `jest` en verde (541 tests), sin errores nuevos en `build:cloudflare`.
+- Verificación funcional en vivo (Claude Desktop + Figma) de `apply-contract`/`figma_capture_html` queda pendiente de correrse en el entorno con el plugin conectado.
+
 ## [Unreleased] — html-to-figma v2.1
 
 ### Changed
