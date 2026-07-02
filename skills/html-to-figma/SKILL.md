@@ -79,6 +79,40 @@ return run();
 
 Si el script crea o edita más de ~10 nodos, **sube el timeout** a `30000` ms en la llamada a `figma_execute`.
 
+### Carga de fuentes robusta (obligatorio — nunca dejes que una fuente rompa la creación)
+
+Una `font-family` inexistente (p. ej. capturada de un CSS que pide `"NonExistentFont123"`) hace que `loadFontAsync` arroje y **truene toda la ejecución**. Envuélvelo siempre en un helper con fallback. El árbol de `figma_capture_html` puede traer `fontFallback` en los nodos TEXT como pista: úsalo si viene.
+
+```js
+// Carga una fuente con fallback. Devuelve el fontName efectivo (family/style) que
+// SÍ quedó cargado, para asignarlo luego a node.fontName. Nunca lanza.
+async function loadFontSafe(family, style = 'Regular', fallback = 'Inter') {
+  try {
+    await figma.loadFontAsync({ family, style });
+    return { family, style };
+  } catch (e) {
+    try {
+      await figma.loadFontAsync({ family: fallback, style });
+      return { family: fallback, style };
+    } catch (e2) {
+      // Último recurso: la primera fuente disponible del entorno.
+      const avail = await figma.listAvailableFontsAsync();
+      const fn = avail[0].fontName;
+      await figma.loadFontAsync(fn);
+      return fn;
+    }
+  }
+}
+
+// Uso al crear texto:
+const fontName = await loadFontSafe(node.fontFamily, 'Regular', node.fontFallback || 'Inter');
+const t = figma.createText();
+t.fontName = fontName;
+t.characters = node.characters;
+```
+
+⚠ Asigna a `node.fontName` **el fontName que devolvió `loadFontSafe`**, no el original: si el original falló y cargaste el fallback, setear `characters` con la fuente original vuelve a arrojar.
+
 ---
 
 ## 02. Tools de Murdoc — mapa real por fase
@@ -159,6 +193,10 @@ Si encontraste design system existente, **reutiliza lo que encaje** (match por v
 **Ruta preferida — captura viva (v2):** usa `figma_capture_html` con `{ url }`. Renderiza la página real en un navegador headless y devuelve un **árbol de Figma con Auto-Layout** (display:flex → layoutMode, gap → itemSpacing, padding, background → fills, border-radius → cornerRadius) **conservando los nombres `category/role/variant`** del atributo `data-component`. Ese árbol se emite luego con `figma_execute` en la Fase 8. Es de mayor fidelidad que el parseo estático porque usa los estilos computados reales.
 
 También acepta `{ html }` para renderizar una cadena HTML en vez de una URL.
+
+**Forma del árbol al emitirlo (Fase 8):** cada nodo trae `type` (`FRAME` | `TEXT`) — respétalo. Un contenedor con texto pero **con estilo de caja** (fondo, padding, `border-radius`, borde o sombra — p. ej. chips `data/stat/kpi`) llega como **FRAME** con su `fills`/`padding`/`cornerRadius` y un hijo `TEXT`, no como texto suelto: créalo como frame con Auto-Layout, no como `createText`. Los nodos `TEXT` pueden traer `fontFallback` (fuente sugerida cuando la `fontFamily` original no es estándar) — pásalo a `loadFontSafe` (ver §01). El `itemSpacing` ya viene resuelto aunque el layout usara `margin` en vez de `gap`.
+
+> **Seguridad (captura viva):** la tool solo acepta URLs `http`/`https` y **rechaza** `file://`, `data:`, hosts loopback/privados (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `172.16–31.x`) y el endpoint de metadatos `169.254.169.254`, incluyendo dominios que resuelvan a esas IPs (anti DNS-rebinding) y redirects/subrecursos hacia ellos. Si necesitas capturar algo local, sírvelo por HTTP en un host público o usa `{ html }` con el markup inline.
 
 **Fallback estático:** si `figma_capture_html` responde que no hay navegador disponible (o falla), cae al parser estático `scripts/html_parser.py` sobre el HTML/CSS de origen (trae el HTML con `web_fetch` primero). El parser estático sigue siendo válido para artifacts/proyectos multi-archivo donde no hay una URL en vivo que renderizar.
 

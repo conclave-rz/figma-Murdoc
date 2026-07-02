@@ -44,6 +44,15 @@ export interface DomSnapshotNode {
 		fontFamily?: string;
 		justifyContent?: string;
 		alignItems?: string;
+		/** márgenes (Fix 2: derivar itemSpacing cuando no hay gap). */
+		marginTop?: string;
+		marginRight?: string;
+		marginBottom?: string;
+		marginLeft?: string;
+		/** estilo de caja (Fix 3: no colapsar a TEXT si el contenedor tiene caja). */
+		borderTopWidth?: string;
+		borderStyle?: string;
+		boxShadow?: string;
 	};
 	children: DomSnapshotNode[];
 }
@@ -79,6 +88,8 @@ export interface FigmaTreeNode {
 	fontSize?: number;
 	fontWeight?: number;
 	fontFamily?: string;
+	/** (Fix 4) sugerencia de fuente cargable si `fontFamily` no es estándar; pista para el creador. */
+	fontFallback?: string;
 	/** marca de que el nombre viene del contrato (category/role/variant) */
 	fromContract?: boolean;
 	children?: FigmaTreeNode[];
@@ -373,20 +384,27 @@ export function snapshotToFigmaTree(node: DomSnapshotNode, opts: ConvertOptions 
 	const fromContract = Boolean(node.dataComponent);
 
 	if (isText) {
-		const color = parseColor(node.styles.color);
-		const textNode: FigmaTreeNode = {
-			type: "TEXT",
-			name: node.dataComponent || `text: ${truncate(node.text!.trim(), 24)}`,
+		// (Fix 3) Solo colapsar a TEXT puro si el elemento NO tiene estilo de caja.
+		// Si lo tiene (chip con fondo/padding/radius/borde/sombra), se conserva como
+		// FRAME con el texto de hijo para no perder fill/padding/cornerRadius/stroke.
+		if (!hasBoxStyle(node.styles)) {
+			return buildTextNode(node, true);
+		}
+		const boxLayout = resolveLayoutMode(node.styles);
+		const boxFrame: FigmaTreeNode = {
+			type: "FRAME",
+			name, // conserva data-component en el FRAME, no en el texto
 			width: Math.round(node.rect.width),
 			height: Math.round(node.rect.height),
-			characters: node.text!.trim(),
-			fontSize: pxToNumber(node.styles.fontSize) || 16,
-			fontWeight: pxToNumber(node.styles.fontWeight) || 400,
-			fontFamily: firstFontFamily(node.styles.fontFamily),
+			// Si el display no era flex/grid, damos Auto-Layout horizontal para que el
+			// padding aplique (en Figma el padding requiere Auto-Layout).
+			layoutMode: boxLayout === "NONE" ? "HORIZONTAL" : boxLayout,
 			fromContract,
 		};
-		if (color) textNode.fills = [{ type: "SOLID", color }];
-		return textNode;
+		applyPaddingAndAlign(boxFrame, node.styles);
+		applyFillAndRadius(boxFrame, node.styles);
+		boxFrame.children = [buildTextNode(node, false)];
+		return boxFrame;
 	}
 
 	const layoutMode = resolveLayoutMode(node.styles);
@@ -401,19 +419,16 @@ export function snapshotToFigmaTree(node: DomSnapshotNode, opts: ConvertOptions 
 
 	if (layoutMode !== "NONE") {
 		frame.itemSpacing = pxToNumber(node.styles.gap);
-		frame.paddingTop = pxToNumber(node.styles.paddingTop);
-		frame.paddingRight = pxToNumber(node.styles.paddingRight);
-		frame.paddingBottom = pxToNumber(node.styles.paddingBottom);
-		frame.paddingLeft = pxToNumber(node.styles.paddingLeft);
-		frame.primaryAxisAlignItems = mapJustify(node.styles.justifyContent);
-		frame.counterAxisAlignItems = mapAlign(node.styles.alignItems);
+		// (Fix 2) Sin gap pero con margen uniforme entre hijos → deriva itemSpacing.
+		// Si los márgenes no son uniformes se conserva 0 (no fabricamos un valor único).
+		if (frame.itemSpacing === 0) {
+			const fromMargins = deriveItemSpacingFromMargins(node.children, layoutMode);
+			if (fromMargins > 0) frame.itemSpacing = fromMargins;
+		}
+		applyPaddingAndAlign(frame, node.styles);
 	}
 
-	const bg = parseColor(node.styles.backgroundColor);
-	if (bg) frame.fills = [{ type: "SOLID", color: bg }];
-
-	const radius = pxToNumber(node.styles.borderRadius);
-	if (radius > 0) frame.cornerRadius = radius;
+	applyFillAndRadius(frame, node.styles);
 
 	const children = node.children
 		.map((c) => snapshotToFigmaTree(c, opts))
@@ -427,9 +442,130 @@ function truncate(s: string, n: number): string {
 	return s.length > n ? `${s.slice(0, n)}…` : s;
 }
 
+/** Construye un nodo TEXT desde una hoja de texto. `useContractName` conserva el data-component como nombre. */
+function buildTextNode(node: DomSnapshotNode, useContractName: boolean): FigmaTreeNode {
+	const color = parseColor(node.styles.color);
+	const family = firstFontFamily(node.styles.fontFamily);
+	const characters = (node.text ?? "").trim();
+	const textNode: FigmaTreeNode = {
+		type: "TEXT",
+		name: useContractName && node.dataComponent ? node.dataComponent : `text: ${truncate(characters, 24)}`,
+		width: Math.round(node.rect.width),
+		height: Math.round(node.rect.height),
+		characters,
+		fontSize: pxToNumber(node.styles.fontSize) || 16,
+		fontWeight: pxToNumber(node.styles.fontWeight) || 400,
+		fontFamily: family,
+		fromContract: useContractName && Boolean(node.dataComponent),
+	};
+	// (Fix 4) Marca fuente no estándar para que el creador aplique fallback.
+	if (isNonStandardFont(family)) textNode.fontFallback = FONT_FALLBACK;
+	if (color) textNode.fills = [{ type: "SOLID", color }];
+	return textNode;
+}
+
+/** Aplica padding + alineación de Auto-Layout desde los estilos. */
+function applyPaddingAndAlign(frame: FigmaTreeNode, styles: DomSnapshotNode["styles"]): void {
+	frame.paddingTop = pxToNumber(styles.paddingTop);
+	frame.paddingRight = pxToNumber(styles.paddingRight);
+	frame.paddingBottom = pxToNumber(styles.paddingBottom);
+	frame.paddingLeft = pxToNumber(styles.paddingLeft);
+	frame.primaryAxisAlignItems = mapJustify(styles.justifyContent);
+	frame.counterAxisAlignItems = mapAlign(styles.alignItems);
+}
+
+/** Aplica fill de fondo + cornerRadius desde los estilos. */
+function applyFillAndRadius(frame: FigmaTreeNode, styles: DomSnapshotNode["styles"]): void {
+	const bg = parseColor(styles.backgroundColor);
+	if (bg) frame.fills = [{ type: "SOLID", color: bg }];
+	const radius = pxToNumber(styles.borderRadius);
+	if (radius > 0) frame.cornerRadius = radius;
+}
+
 function firstFontFamily(family: string | undefined): string {
 	if (!family) return "Inter";
 	return family.split(",")[0].replace(/["']/g, "").trim() || "Inter";
+}
+
+/**
+ * (Fix 4) Fuentes que asumimos disponibles/mapeables en Figma sin fallback. Si la
+ * fuente capturada no está aquí, marcamos `fontFallback: "Inter"` como pista para
+ * la fase de creación (que igual debe envolver loadFontAsync en try/catch).
+ */
+const SAFE_FONTS = new Set([
+	"inter",
+	"roboto",
+	"arial",
+	"helvetica",
+	"helvetica neue",
+	"sans-serif",
+	"serif",
+	"system-ui",
+	"-apple-system",
+	"segoe ui",
+	"georgia",
+	"times new roman",
+	"courier new",
+	"monospace",
+	"ui-sans-serif",
+	"ui-serif",
+	"ui-monospace",
+]);
+
+/** Fuente por defecto para el fallback de creación. */
+export const FONT_FALLBACK = "Inter";
+
+/** ¿La familia (primera del stack) es no estándar y conviene marcar fallback? */
+export function isNonStandardFont(family: string): boolean {
+	return !SAFE_FONTS.has(family.trim().toLowerCase());
+}
+
+/**
+ * (Fix 3) ¿El elemento tiene estilo de caja? Si lo tiene, NO debe colapsarse a un
+ * TEXT puro aunque su único contenido sea texto: perdería fill/padding/radius/borde.
+ */
+function hasBoxStyle(styles: DomSnapshotNode["styles"]): boolean {
+	if (parseColor(styles.backgroundColor)) return true;
+	if (pxToNumber(styles.borderRadius) > 0) return true;
+	if (
+		pxToNumber(styles.paddingTop) > 0 ||
+		pxToNumber(styles.paddingRight) > 0 ||
+		pxToNumber(styles.paddingBottom) > 0 ||
+		pxToNumber(styles.paddingLeft) > 0
+	) {
+		return true;
+	}
+	if (pxToNumber(styles.borderTopWidth) > 0 && styles.borderStyle && styles.borderStyle !== "none") return true;
+	if (styles.boxShadow && styles.boxShadow !== "none") return true;
+	return false;
+}
+
+/**
+ * (Fix 2) Cuando `gap` es 0 pero los hijos se separan con un margen uniforme en el
+ * eje principal (margin-right en fila, margin-bottom en columna), deriva el
+ * itemSpacing de ese margen. El margen colapsado del último hijo no separa nada,
+ * así que solo miramos los primeros n-1. Si los márgenes no son uniformes devuelve
+ * 0 (no inventamos un único itemSpacing) — ver nota en el sitio de llamada.
+ */
+export function deriveItemSpacingFromMargins(
+	children: DomSnapshotNode[],
+	layoutMode: "HORIZONTAL" | "VERTICAL",
+): number {
+	if (children.length < 2) return 0;
+	const trailing = layoutMode === "HORIZONTAL" ? "marginRight" : "marginBottom";
+	const leading = layoutMode === "HORIZONTAL" ? "marginLeft" : "marginTop";
+
+	const uniformValue = (values: number[]): number => {
+		if (values.length === 0 || values.some((v) => v <= 0)) return 0;
+		return values.every((v) => v === values[0]) ? values[0] : 0;
+	};
+
+	// Preferimos el margen "trailing" de los primeros n-1 hijos.
+	const fromTrailing = uniformValue(children.slice(0, -1).map((c) => pxToNumber(c.styles[trailing])));
+	if (fromTrailing > 0) return fromTrailing;
+
+	// Fallback: margen "leading" de los últimos n-1 hijos.
+	return uniformValue(children.slice(1).map((c) => pxToNumber(c.styles[leading])));
 }
 
 /** Cuenta nodos y cuántos conservan nombre de contrato — para el reporte de aceptación. */
@@ -503,6 +639,13 @@ export const LIVE_CAPTURE_SCRIPT = function captureDom(): DomSnapshotNode {
 				fontFamily: cs.fontFamily,
 				justifyContent: cs.justifyContent,
 				alignItems: cs.alignItems,
+				marginTop: cs.marginTop,
+				marginRight: cs.marginRight,
+				marginBottom: cs.marginBottom,
+				marginLeft: cs.marginLeft,
+				borderTopWidth: cs.borderTopWidth,
+				borderStyle: cs.borderTopStyle,
+				boxShadow: cs.boxShadow,
 			},
 			children,
 		};

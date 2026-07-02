@@ -12,6 +12,12 @@ import {
 	snapshotToFigmaTree,
 	treeStats,
 	captureLiveHtml,
+	isPrivateIp,
+	isBlockedHostname,
+	assertUrlAllowed,
+	isNonStandardFont,
+	deriveItemSpacingFromMargins,
+	FONT_FALLBACK,
 	type DomSnapshotNode,
 	type CapturePage,
 } from '../src/core/html-to-figma-capture';
@@ -202,5 +208,225 @@ describe('captureLiveHtml', () => {
 	it('lanza si no hay url ni html', async () => {
 		const page = makePage();
 		await expect(captureLiveHtml({}, page)).rejects.toThrow(/url.*html/i);
+	});
+});
+
+// ─── Fix 1 · SSRF / lectura de archivos locales ──────────────────────────────
+
+describe('isPrivateIp', () => {
+	it('detecta rangos IPv4 privados / loopback / link-local', () => {
+		expect(isPrivateIp('127.0.0.1')).toBe(true);
+		expect(isPrivateIp('10.0.0.1')).toBe(true);
+		expect(isPrivateIp('192.168.1.1')).toBe(true);
+		expect(isPrivateIp('172.16.0.1')).toBe(true);
+		expect(isPrivateIp('172.31.255.255')).toBe(true);
+		expect(isPrivateIp('169.254.169.254')).toBe(true); // metadatos cloud
+		expect(isPrivateIp('0.0.0.0')).toBe(true);
+	});
+	it('deja pasar IPv4 públicas', () => {
+		expect(isPrivateIp('8.8.8.8')).toBe(false);
+		expect(isPrivateIp('172.32.0.1')).toBe(false);
+		expect(isPrivateIp('93.184.216.34')).toBe(false);
+	});
+	it('detecta IPv6 loopback / ULA / link-local y IPv4 mapeadas', () => {
+		expect(isPrivateIp('::1')).toBe(true);
+		expect(isPrivateIp('fc00::1')).toBe(true);
+		expect(isPrivateIp('fe80::1')).toBe(true);
+		expect(isPrivateIp('::ffff:127.0.0.1')).toBe(true);
+		expect(isPrivateIp('2001:4860:4860::8888')).toBe(false);
+	});
+});
+
+describe('isBlockedHostname', () => {
+	it('bloquea loopback e IPs privadas literales', () => {
+		expect(isBlockedHostname('localhost')).toBe(true);
+		expect(isBlockedHostname('foo.localhost')).toBe(true);
+		expect(isBlockedHostname('127.0.0.1')).toBe(true);
+		expect(isBlockedHostname('169.254.169.254')).toBe(true);
+		expect(isBlockedHostname('[::1]')).toBe(true);
+	});
+	it('deja pasar dominios normales y IPs públicas', () => {
+		expect(isBlockedHostname('example.com')).toBe(false);
+		expect(isBlockedHostname('8.8.8.8')).toBe(false);
+	});
+});
+
+describe('assertUrlAllowed', () => {
+	it('rechaza file:// (lectura de archivos locales)', async () => {
+		await expect(assertUrlAllowed('file:///etc/hosts')).rejects.toThrow(/esquema no permitido/i);
+	});
+	it('rechaza data: y ftp:', async () => {
+		await expect(assertUrlAllowed('data:text/html,<h1>x</h1>')).rejects.toThrow(/esquema/i);
+		await expect(assertUrlAllowed('ftp://example.com/x')).rejects.toThrow(/esquema/i);
+	});
+	it('rechaza metadatos, localhost e IPs privadas literales', async () => {
+		await expect(assertUrlAllowed('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/bloqueado/i);
+		await expect(assertUrlAllowed('http://localhost:3000')).rejects.toThrow(/bloqueado/i);
+		await expect(assertUrlAllowed('http://10.0.0.1')).rejects.toThrow(/bloqueado/i);
+	});
+	it('rechaza un dominio que RESUELVE a IP interna (DNS rebinding)', async () => {
+		const resolveHost = async () => ['127.0.0.1'];
+		await expect(assertUrlAllowed('http://rebind.example.com', resolveHost)).rejects.toThrow(/rebinding|interna/i);
+	});
+	it('permite https público (resolviendo a IP pública)', async () => {
+		const resolveHost = async () => ['93.184.216.34'];
+		await expect(assertUrlAllowed('https://example.com', resolveHost)).resolves.toBeUndefined();
+	});
+});
+
+describe('captureLiveHtml · guardas SSRF (no navega ante URL bloqueada)', () => {
+	function makePage(): CapturePage & { calls: string[] } {
+		const calls: string[] = [];
+		return {
+			calls,
+			async goto(url: string) {
+				calls.push(`goto:${url}`);
+			},
+			async setContent() {
+				calls.push('setContent');
+			},
+			async setViewport() {
+				calls.push('setViewport');
+			},
+			async evaluate<T>(_fn: () => T): Promise<T> {
+				calls.push('evaluate');
+				return {} as unknown as T;
+			},
+		};
+	}
+
+	it('file:///etc/hosts → rechazada SIN intentar navegar', async () => {
+		const page = makePage();
+		await expect(captureLiveHtml({ url: 'file:///etc/hosts' }, page)).rejects.toThrow(/esquema/i);
+		expect(page.calls).toEqual([]);
+	});
+
+	it('http://169.254.169.254 → rechazada antes de navegar', async () => {
+		const page = makePage();
+		await expect(
+			captureLiveHtml({ url: 'http://169.254.169.254/latest/meta-data/' }, page),
+		).rejects.toThrow(/bloqueado/i);
+		expect(page.calls.some((c) => c.startsWith('goto'))).toBe(false);
+	});
+
+	it('dominio que resuelve a 127.0.0.1 → rechazado (rebinding), sin navegar', async () => {
+		const page = makePage();
+		const resolveHost = async () => ['127.0.0.1'];
+		await expect(
+			captureLiveHtml({ url: 'http://rebind.example.com' }, page, { resolveHost }),
+		).rejects.toThrow(/rebinding|interna/i);
+		expect(page.calls.some((c) => c.startsWith('goto'))).toBe(false);
+	});
+});
+
+// ─── Fix 2 · itemSpacing derivado de margin uniforme ─────────────────────────
+
+describe('Fix 2 · gap por margin', () => {
+	it('deriva itemSpacing de margin-right uniforme cuando no hay gap (fila)', () => {
+		const tree = snapshotToFigmaTree(
+			node({
+				tag: 'div',
+				styles: { display: 'flex', flexDirection: 'row' },
+				children: [
+					node({ tag: 'span', rect: { x: 0, y: 0, width: 30, height: 20 }, text: 'a', styles: { marginRight: '12px' } }),
+					node({ tag: 'span', rect: { x: 0, y: 0, width: 30, height: 20 }, text: 'b', styles: { marginRight: '12px' } }),
+					node({ tag: 'span', rect: { x: 0, y: 0, width: 30, height: 20 }, text: 'c', styles: { marginRight: '12px' } }),
+				],
+			}),
+		)!;
+		expect(tree.itemSpacing).toBe(12);
+	});
+
+	it('no fabrica itemSpacing si los márgenes no son uniformes', () => {
+		expect(
+			deriveItemSpacingFromMargins(
+				[
+					node({ styles: { marginRight: '12px' } }),
+					node({ styles: { marginRight: '8px' } }),
+					node({ styles: { marginRight: '12px' } }),
+				],
+				'HORIZONTAL',
+			),
+		).toBe(0);
+	});
+
+	it('deriva margin-bottom en columna', () => {
+		expect(
+			deriveItemSpacingFromMargins(
+				[node({ styles: { marginBottom: '16px' } }), node({ styles: { marginBottom: '16px' } })],
+				'VERTICAL',
+			),
+		).toBe(16);
+	});
+});
+
+// ─── Fix 3 · contenedor con estilo de caja no se colapsa a TEXT ───────────────
+
+describe('Fix 3 · caja con texto → FRAME + TEXT hijo', () => {
+	it('un chip con fondo/padding/radius queda FRAME con TEXT hijo, no texto suelto', () => {
+		const tree = snapshotToFigmaTree(
+			node({
+				tag: 'div',
+				dataComponent: 'data/stat/kpi',
+				rect: { x: 0, y: 0, width: 120, height: 64 },
+				text: 'Ventas',
+				styles: {
+					backgroundColor: '#FFFFFF',
+					paddingTop: '16px',
+					paddingRight: '16px',
+					paddingBottom: '16px',
+					paddingLeft: '16px',
+					borderRadius: '10px',
+				},
+			}),
+		)!;
+		expect(tree.type).toBe('FRAME');
+		expect(tree.name).toBe('data/stat/kpi');
+		expect(tree.fromContract).toBe(true);
+		expect(tree.fills?.[0].color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+		expect(tree.paddingLeft).toBe(16);
+		expect(tree.cornerRadius).toBe(10);
+		expect(tree.children).toHaveLength(1);
+		expect(tree.children![0].type).toBe('TEXT');
+		expect(tree.children![0].characters).toBe('Ventas');
+	});
+
+	it('texto SIN estilo de caja sigue colapsando a TEXT puro', () => {
+		const tree = snapshotToFigmaTree(
+			node({ tag: 'span', rect: { x: 0, y: 0, width: 40, height: 16 }, text: 'plano', styles: {} }),
+		)!;
+		expect(tree.type).toBe('TEXT');
+		expect(tree.characters).toBe('plano');
+	});
+});
+
+// ─── Fix 4 · fallback de fuente inexistente ──────────────────────────────────
+
+describe('Fix 4 · fontFallback', () => {
+	it('isNonStandardFont marca fuentes no estándar', () => {
+		expect(isNonStandardFont('NonExistentFont123')).toBe(true);
+		expect(isNonStandardFont('Inter')).toBe(false);
+		expect(isNonStandardFont('roboto')).toBe(false);
+	});
+
+	it('un TEXT con fuente inexistente trae fontFallback = Inter', () => {
+		const tree = snapshotToFigmaTree(
+			node({
+				tag: 'span',
+				rect: { x: 0, y: 0, width: 60, height: 20 },
+				text: 'hola',
+				styles: { fontFamily: '"NonExistentFont123", sans-serif' },
+			}),
+		)!;
+		expect(tree.type).toBe('TEXT');
+		expect(tree.fontFamily).toBe('NonExistentFont123');
+		expect(tree.fontFallback).toBe(FONT_FALLBACK);
+	});
+
+	it('un TEXT con fuente estándar no trae fontFallback', () => {
+		const tree = snapshotToFigmaTree(
+			node({ tag: 'span', rect: { x: 0, y: 0, width: 60, height: 20 }, text: 'hola', styles: { fontFamily: 'Inter' } }),
+		)!;
+		expect(tree.fontFallback).toBeUndefined();
 	});
 });
