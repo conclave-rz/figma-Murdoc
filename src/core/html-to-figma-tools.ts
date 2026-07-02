@@ -13,14 +13,28 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createChildLogger } from "./logger.js";
-import { captureLiveHtml, type CapturePage, type CaptureResult } from "./html-to-figma-capture.js";
+import {
+	captureLiveHtml,
+	type CapturePage,
+	type CaptureResult,
+	type HostResolver,
+} from "./html-to-figma-capture.js";
 
 const logger = createChildLogger({ component: "html-to-figma" });
 
 /** Provee una página headless fresca (aislada de la que maneja Figma). null si no hay browser. */
 export type FreshPageProvider = () => Promise<CapturePage | null>;
 
-export function registerHtmlToFigmaTools(server: McpServer, getFreshPage: FreshPageProvider): void {
+/**
+ * Registra la tool. `resolveHost` (opcional) inyecta el resolver DNS para la defensa
+ * SSRF contra DNS rebinding; los entry-points con DNS (Node/local) lo pasan, los que
+ * no lo tienen (Cloudflare) lo omiten y la validación se apoya en esquema + literal.
+ */
+export function registerHtmlToFigmaTools(
+	server: McpServer,
+	getFreshPage: FreshPageProvider,
+	resolveHost?: HostResolver,
+): void {
 	server.tool(
 		"figma_capture_html",
 		"Live capture: renders a real URL or HTML string in a headless browser and returns a Figma node tree with Auto-Layout, preserving layer names from the `data-component` (category/role/variant) attribute. Higher fidelity than the static parser. If no browser is available, returns guidance to use the static parser fallback (html-to-figma skill). Feed the returned tree to figma_execute to create the layers.",
@@ -80,6 +94,7 @@ export function registerHtmlToFigmaTools(server: McpServer, getFreshPage: FreshP
 						},
 					},
 					page,
+					{ resolveHost },
 				);
 				logger.info({ url, stats: result.stats }, "Captura viva completada");
 				return {

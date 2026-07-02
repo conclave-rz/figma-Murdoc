@@ -20,6 +20,7 @@ import { z } from "zod";
 import { fileURLToPath } from "url";
 import { dirname, resolve, join } from "path";
 import { realpathSync, existsSync, readFileSync, mkdirSync, copyFileSync, writeFileSync } from "fs";
+import { promises as dnsPromises } from "node:dns";
 import { homedir } from "os";
 import { LocalBrowserManager } from "./browser/local.js";
 import { ConsoleMonitor } from "./core/console-monitor.js";
@@ -5818,7 +5819,15 @@ return {
 				const browser = await puppeteer.launch({
 					executablePath: candidates[0],
 					headless: true,
-					args: ["--no-sandbox", "--disable-setuid-sandbox"],
+					args: [
+						"--no-sandbox",
+						"--disable-setuid-sandbox",
+						// (Fix 1) Endurecer: cortar acceso del contenido a la FileSystem API.
+						// La allowlist de esquema en captureLiveHtml ya rechaza file:/data:,
+						// esto es defensa en profundidad; NO usamos --allow-file-access-from-files
+						// (que habilitaría lecturas locales) ni desactivamos site isolation.
+						"--disable-file-system",
+					],
 				});
 				const page = await browser.newPage();
 				// Al cerrar la página, cerrar también el navegador dedicado (evita fugas).
@@ -5832,6 +5841,11 @@ return {
 				logger.error({ err }, "No se pudo lanzar Chromium dedicado para captura viva");
 				return null;
 			}
+		},
+		// (Fix 1) Resolver DNS de Node → defensa contra DNS rebinding (dominio → IP interna).
+		async (hostname: string): Promise<string[]> => {
+			const results = await dnsPromises.lookup(hostname, { all: true });
+			return results.map((r) => r.address);
 		});
 
 		// Register Comment tools

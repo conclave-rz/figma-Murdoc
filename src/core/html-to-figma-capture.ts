@@ -91,12 +91,35 @@ export interface CaptureResult {
 	stats: { nodes: number; contractNamed: number; textNodes: number };
 }
 
+/** Request interceptada por puppeteer (estructural: solo lo que usamos para validar/abortar). */
+export interface InterceptedRequest {
+	url(): string;
+	continue(): Promise<unknown>;
+	abort(reason?: string): Promise<unknown>;
+}
+
 /** Página headless mínima que necesitamos (estructural, evita acoplar puppeteer-core vs @cloudflare/puppeteer). */
 export interface CapturePage {
 	goto(url: string, opts?: unknown): Promise<unknown>;
 	setContent(html: string, opts?: unknown): Promise<unknown>;
 	setViewport?(vp: { width: number; height: number; deviceScaleFactor?: number }): Promise<unknown>;
 	evaluate<T>(fn: () => T): Promise<T>;
+	/** Opcional: activa la interceptación de requests (defensa SSRF sobre subrecursos/redirects). */
+	setRequestInterception?(enabled: boolean): Promise<unknown>;
+	/** Opcional: registra un listener de eventos de la página (usamos "request"). */
+	on?(event: string, handler: (req: InterceptedRequest) => void): unknown;
+}
+
+/**
+ * Resuelve un hostname a sus IPs (A/AAAA). Se inyecta desde el entry-point que sí
+ * tiene DNS (Node/local); en entornos sin resolver (p. ej. Cloudflare Workers) se
+ * omite y la validación se apoya solo en el chequeo de esquema + literal de host.
+ */
+export type HostResolver = (hostname: string) => Promise<string[]>;
+
+export interface CaptureSecurityOptions {
+	/** Resolver DNS inyectado para bloquear rebinding (dominio → IP interna). */
+	resolveHost?: HostResolver;
 }
 
 // ─── Helpers puros ───────────────────────────────────────────────────────────
@@ -218,6 +241,108 @@ export function semanticName(node: DomSnapshotNode): string {
 		form: "form",
 	};
 	return tagNames[node.tag] || node.tag || "frame";
+}
+
+// ─── Guardas de seguridad (SSRF / lectura de archivos locales) ───────────────
+
+/** Esquemas de red permitidos. Todo lo demás (file:, data:, ftp:, blob:…) se rechaza. */
+export const ALLOWED_URL_SCHEMES = ["http:", "https:"];
+
+/**
+ * ¿La IP (v4 o v6) cae en un rango privado / loopback / link-local?
+ * Cubre: loopback, RFC1918, link-local (incl. metadatos 169.254.0.0/16 y fe80::/10),
+ * ULA IPv6 (fc00::/7), unspecified y IPv4 mapeadas en IPv6 (::ffff:x.x.x.x).
+ */
+export function isPrivateIp(ip: string): boolean {
+	const addr = ip.trim().toLowerCase();
+	if (!addr) return false;
+
+	// IPv4 mapeada en IPv6: ::ffff:10.0.0.1 → validar la parte v4 embebida.
+	const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(addr);
+	if (mapped) return isPrivateIp(mapped[1]);
+
+	// IPv4
+	if (/^\d{1,3}(\.\d{1,3}){3}$/.test(addr)) {
+		const o = addr.split(".").map((n) => parseInt(n, 10));
+		if (o.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return false;
+		const [a, b] = o;
+		if (a === 0) return true; // 0.0.0.0/8 (incluye unspecified)
+		if (a === 10) return true; // 10.0.0.0/8
+		if (a === 127) return true; // 127.0.0.0/8 loopback
+		if (a === 169 && b === 254) return true; // 169.254.0.0/16 link-local / metadatos
+		if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+		if (a === 192 && b === 168) return true; // 192.168.0.0/16
+		if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
+		return false;
+	}
+
+	// IPv6
+	if (addr.includes(":")) {
+		if (addr === "::" || addr === "::1") return true; // unspecified / loopback
+		if (addr.startsWith("fc") || addr.startsWith("fd")) return true; // fc00::/7 ULA
+		if (addr.startsWith("fe8") || addr.startsWith("fe9") || addr.startsWith("fea") || addr.startsWith("feb"))
+			return true; // fe80::/10 link-local
+		return false;
+	}
+
+	return false;
+}
+
+/**
+ * ¿El hostname literal debe bloquearse sin resolver DNS?
+ * Cubre nombres loopback conocidos e IPs literales privadas (v4/v6). No decide
+ * sobre dominios normales — eso lo hace la resolución DNS en `assertUrlAllowed`.
+ */
+export function isBlockedHostname(hostname: string): boolean {
+	let host = hostname.trim().toLowerCase();
+	if (!host) return true;
+	// Quita corchetes de IPv6 literal: [::1] → ::1
+	host = host.replace(/^\[/, "").replace(/\]$/, "");
+	if (host === "localhost" || host.endsWith(".localhost")) return true;
+	if (host === "0.0.0.0" || host === "::" || host === "::1") return true;
+	// Literal IP (v4 o v6): valídalo directo.
+	if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":")) {
+		return isPrivateIp(host);
+	}
+	return false;
+}
+
+/**
+ * Valida una URL antes de navegar/cargar (defensa SSRF + lectura de archivos):
+ *  1. Esquema en la allowlist (http/https).
+ *  2. Host literal no loopback/privado.
+ *  3. Si hay resolver DNS, resolver-entonces-verificar: si el dominio apunta a una
+ *     IP interna se rechaza (previene DNS rebinding).
+ * Lanza Error con motivo si la URL no pasa. No hace ninguna petición de red por sí sola.
+ */
+export async function assertUrlAllowed(rawUrl: string, resolveHost?: HostResolver): Promise<void> {
+	let parsed: URL;
+	try {
+		parsed = new URL(rawUrl);
+	} catch {
+		throw new Error(`URL inválida: ${rawUrl}`);
+	}
+	if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+		throw new Error(`Esquema no permitido: "${parsed.protocol}" (solo se admiten http/https).`);
+	}
+	const host = parsed.hostname;
+	if (isBlockedHostname(host)) {
+		throw new Error(`Host bloqueado (loopback/interno/metadatos): ${host}`);
+	}
+	if (resolveHost) {
+		let ips: string[] = [];
+		try {
+			ips = await resolveHost(host.replace(/^\[/, "").replace(/\]$/, ""));
+		} catch {
+			// Si no resuelve, no fabricamos un veredicto: dejamos que la navegación falle
+			// naturalmente. El chequeo literal ya cubrió las IPs privadas explícitas.
+			ips = [];
+		}
+		const internal = ips.find((ip) => isPrivateIp(ip));
+		if (internal) {
+			throw new Error(`El host "${host}" resuelve a una IP interna (${internal}) — posible SSRF / DNS rebinding.`);
+		}
+	}
 }
 
 // ─── Conversión pura DOM snapshot → árbol de Figma ───────────────────────────
@@ -412,10 +537,33 @@ export interface CaptureInput {
  * Renderiza el input (URL o HTML) en `page`, extrae el snapshot y lo convierte a
  * árbol de Figma. La página se inyecta (DI) para no acoplar el manager concreto.
  */
-export async function captureLiveHtml(input: CaptureInput, page: CapturePage): Promise<CaptureResult> {
+export async function captureLiveHtml(
+	input: CaptureInput,
+	page: CapturePage,
+	security: CaptureSecurityOptions = {},
+): Promise<CaptureResult> {
 	if (!input.url && !input.html) {
 		throw new Error("captureLiveHtml requiere `url` o `html`.");
 	}
+
+	// (Fix 1) Validación SSRF/archivos locales ANTES de cualquier navegación.
+	if (input.url) {
+		await assertUrlAllowed(input.url, security.resolveHost);
+	}
+
+	// (Fix 1) Interceptar TODAS las requests: aplica la misma validación de esquema+host
+	// a subrecursos y a redirects (un host permitido puede hacer 302 a uno interno).
+	if (typeof page.setRequestInterception === "function" && typeof page.on === "function") {
+		await page.setRequestInterception(true);
+		page.on("request", (req: InterceptedRequest) => {
+			assertUrlAllowed(req.url(), security.resolveHost)
+				.then(() => req.continue())
+				.catch(() => req.abort("blockedbyclient"))
+				// Nunca dejar la request colgada si algo revienta al abortar/continuar.
+				.catch(() => {});
+		});
+	}
+
 	if (page.setViewport && input.viewport) {
 		await page.setViewport({ ...input.viewport, deviceScaleFactor: 1 });
 	}
