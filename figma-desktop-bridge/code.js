@@ -1786,6 +1786,21 @@ figma.ui.onmessage = async (msg) => {
         throw new Error(errorParts.join(' '));
       }
 
+      // dynamic-page fix: la página del componente debe estar cargada antes de instanciar.
+      // En archivos documentAccess: dynamic-page, crear una instancia de un componente cuya
+      // página no está cargada puede fallar/colgarse. Cargarla es idempotente y seguro (no-op
+      // si ya está cargada). Guardado y envuelto: nunca rompe el happy path.
+      // Ver docs/fixes/reuse-first-instantiate-fallback.md.
+      try {
+        var compPage = component.parent;
+        while (compPage && compPage.type !== 'PAGE') { compPage = compPage.parent; }
+        if (compPage && typeof compPage.loadAsync === 'function') {
+          await compPage.loadAsync();
+        }
+      } catch (loadErr) {
+        console.log('🌉 [Desktop Bridge] loadAsync de la página del componente falló (se continúa): ' + (loadErr && loadErr.message ? loadErr.message : loadErr));
+      }
+
       // Create the instance
       instance = component.createInstance();
 
