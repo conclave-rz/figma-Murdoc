@@ -37,12 +37,38 @@ Registrar por cada pieza: `{ pieza, encontrada: si|no, fuente: registry|archivo|
 
 ### Paso 3 — Decidir reusar vs. generar
 ```
-- encontrada=si  → REUSAR: figma_instantiate_component (o importComponentByKeyAsync para librería)
-                    y bindear props/tokens de la instancia. No reconstruir.
+- encontrada=si  → REUSAR vía figma_execute (NO figma_instantiate_component: se cuelga 15s en
+                    archivos dynamic-page). Todo async:
+                    · local   → await figma.getNodeByIdAsync(nodeId)
+                    · librería → await figma.importComponentByKeyAsync(variantKey)
+                    → comp.createInstance() → appendChild + x/y → setProperties(variant/overrides).
+                    Ver helper reuseComponent(). No reconstruir.
 - encontrada=no  → marcar la pieza como "a generar" y devolver el control al skill llamador,
                     que la crea siguiendo sus reglas (Auto Layout, tokens del DS/contrato).
 ```
 Si el registry define la pieza pero no hay componente en el archivo, sugerir correr `apply-contract` primero para materializar el stub y reusarlo.
+
+> **⚠️ No uses la tool dedicada `figma_instantiate_component`.** En archivos con `documentAccess: dynamic-page` (el default nuevo del manifest) se cuelga ~15s por instancia y revienta con `INSTANTIATE_COMPONENT timed out after 15000ms`. El control crudo `comp.createInstance()` vía `figma_execute` funciona en ~12ms. Usa el drop-in async `reuseComponent()` (ver `figma-scripts/reuse-component.js` y `docs/fixes/reuse-first-instantiate-fallback.md`).
+
+**Helper de reúso (drop-in async, seguro en dynamic-page):**
+```js
+async function reuseComponent({ nodeId, componentKey, parentId, position, variant, overrides }) {
+  let comp = null;
+  if (nodeId)                comp = await figma.getNodeByIdAsync(nodeId);
+  if (!comp && componentKey) comp = await figma.importComponentByKeyAsync(componentKey);
+  if (!comp) throw new Error("componente no resuelto: " + (nodeId || componentKey));
+  if (comp.type === "COMPONENT_SET") comp = comp.defaultVariant || comp.children[0];
+
+  const inst = comp.createInstance();
+  if (parentId) { const p = await figma.getNodeByIdAsync(parentId); if (p) p.appendChild(inst); }
+  if (position) { inst.x = position.x; inst.y = position.y; }
+  const props = { ...(variant || {}), ...(overrides || {}) };
+  if (Object.keys(props).length) inst.setProperties(props); // los nombres de prop pueden traer sufijo #nodeId
+
+  const main = await inst.getMainComponentAsync();
+  return { instanceId: inst.id, name: inst.name, mainComponentId: main && main.id };
+}
+```
 
 ### Paso 4 — Reportar el preflight
 Emitir un resumen que el skill llamador incorpora a su flujo:
