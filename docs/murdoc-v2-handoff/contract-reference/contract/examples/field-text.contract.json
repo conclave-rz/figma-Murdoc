@@ -1,0 +1,5 @@
+{ "id": "form/field/text",
+  "slots": ["label","input","hint","error"],
+  "states": ["default","focus","filled","disabled","invalid"],
+  "tokensUsed": ["semantic.color.bg.base","semantic.color.text.primary","semantic.color.border.default","semantic.radius.control"],
+  "a11y": { "role": "textbox" }, "behavior": "zag:field" }

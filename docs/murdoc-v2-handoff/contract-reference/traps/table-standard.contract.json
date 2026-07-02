@@ -1,0 +1,5 @@
+{ "id": "data/table/standard",
+  "slots": ["header","body","row","cell"],
+  "states": ["default","loading","empty"],
+  "tokensUsed": ["semantic.color.bg.base","semantic.color.border.default"],
+  "a11y": { "role": "table" }, "behavior": null }

@@ -1,0 +1,76 @@
+{
+  "$schema": "code-connect.map",
+  "generatedFrom": "docs/contract-reference/registry.json",
+  "entries": [
+    {
+      "contract": "action/button/primary",
+      "figmaNodeId": "2:54",
+      "figmaNodeName": "action/button/primary",
+      "code": {
+        "component": "ButtonPrimary",
+        "import": "@/components/ui/button-primary",
+        "dataComponent": "action/button/primary",
+        "source": "src/components/ui/button-primary.tsx"
+      },
+      "tokensUsed": [
+        "component.button.primary.bg",
+        "component.button.primary.text",
+        "component.button.primary.radius"
+      ],
+      "status": "linked"
+    },
+    {
+      "contract": "form/field/text",
+      "figmaNodeId": "2:59",
+      "figmaNodeName": "form/field/text",
+      "code": {
+        "component": "TextField",
+        "import": "@/components/ui/text-field",
+        "dataComponent": "form/field/text",
+        "source": "src/components/ui/text-field.tsx"
+      },
+      "tokensUsed": [
+        "semantic.color.bg.base",
+        "semantic.color.text.primary",
+        "semantic.color.border.default",
+        "semantic.radius.control"
+      ],
+      "status": "linked"
+    },
+    {
+      "contract": "overlay/dialog/modal",
+      "figmaNodeId": "2:65",
+      "figmaNodeName": "overlay/dialog/modal",
+      "code": null,
+      "tokensUsed": [
+        "semantic.color.bg.base",
+        "semantic.color.text.primary",
+        "semantic.radius.card"
+      ],
+      "status": "figma-only"
+    },
+    {
+      "contract": "data/table/standard",
+      "figmaNodeId": null,
+      "figmaNodeName": null,
+      "code": {
+        "component": "DataTable",
+        "import": "@/components/ui/data-table",
+        "dataComponent": "data/table/standard",
+        "source": "src/components/ui/data-table.tsx"
+      },
+      "tokensUsed": [
+        "semantic.color.bg.base",
+        "semantic.color.border.default"
+      ],
+      "status": "code-only"
+    }
+  ],
+  "unmapped": [
+    {
+      "nodeId": "16:2",
+      "name": "data/table/ghost",
+      "reason": "nombre/pluginData no está en el registry"
+    }
+  ]
+}

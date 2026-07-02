@@ -1,0 +1,5 @@
+{ "id": "action/button/primary",
+  "slots": ["label","icon-start","icon-end"],
+  "states": ["default","hover","focus","active","disabled","loading"],
+  "tokensUsed": ["component.button.primary.bg","component.button.primary.text","component.button.primary.radius"],
+  "a11y": { "role": "button" }, "behavior": null }

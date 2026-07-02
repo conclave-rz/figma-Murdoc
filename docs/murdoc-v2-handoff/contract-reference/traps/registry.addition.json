@@ -1,0 +1,2 @@
+{ "meta": { "contract": "data/table/standard" }, "category": "data", "role": "table", "variant": "standard",
+  "files": [{ "path": "contract/examples/table-standard.contract.json" }] }

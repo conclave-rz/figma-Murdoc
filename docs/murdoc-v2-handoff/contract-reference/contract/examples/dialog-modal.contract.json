@@ -1,0 +1,5 @@
+{ "id": "overlay/dialog/modal",
+  "slots": ["trigger","title","body","footer","close"],
+  "states": ["closed","open"],
+  "tokensUsed": ["semantic.color.bg.base","semantic.color.text.primary","semantic.radius.card"],
+  "a11y": { "role": "dialog" }, "behavior": "ark:dialog" }

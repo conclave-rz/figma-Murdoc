@@ -1,0 +1,12 @@
+{
+  "$schema": "contract.registry",
+  "version": "1.0.0",
+  "items": [
+    { "meta": { "contract": "action/button/primary" }, "category": "action", "role": "button", "variant": "primary",
+      "files": [{ "path": "contract/examples/button-primary.contract.json" }] },
+    { "meta": { "contract": "form/field/text" }, "category": "form", "role": "field", "variant": "text",
+      "files": [{ "path": "contract/examples/field-text.contract.json" }] },
+    { "meta": { "contract": "overlay/dialog/modal" }, "category": "overlay", "role": "dialog", "variant": "modal",
+      "files": [{ "path": "contract/examples/dialog-modal.contract.json" }] }
+  ]
+}
